@@ -50,6 +50,7 @@ Incluye 3 casos para el algoritmo `contain`:
 2. Opcional:
    - `Sin fondo`: elimina fondo predominante conectado en bordes.
    - `Extraer por capas (PSD)`: una salida por capa rasterizable.
+   - `Capas PSD a tamano real (100%)`: al extraer capas, mantiene su tamano original en vez de 800x800.
    - `Fondo adicional con color predominante`: relleno automatico del color de fondo dominante.
    - `Fondo fallback`: color de respaldo cuando no detecta color predominante.
 3. Click en `Procesar`.
@@ -60,6 +61,8 @@ Incluye 3 casos para el algoritmo `contain`:
 
 - Se procesa el PSD usando su vista compuesta.
 - Si activas `Extraer por capas (PSD)`, genera una imagen por capa con nombre de capa.
+- Si el PSD contiene 2 o mas mesas de trabajo (artboards), exporta una imagen por cada mesa (composicion de sus capas).
+- Si activas `Capas PSD a tamano real (100%)`, la salida por capas/mesas se guarda al tamano original del elemento.
 - Si un PSD no trae composicion compatible, la app mostrara error.
 - Recomendacion: guardar PSD con compatibilidad maxima.
 

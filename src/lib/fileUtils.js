@@ -38,6 +38,11 @@ export function buildOutputNameFromStem(stem, registry, overwriteDuplicates) {
   return nextName(base, registry, overwriteDuplicates);
 }
 
+export function buildOutputNameFromStemRealSize(stem, registry, overwriteDuplicates) {
+  const base = `${sanitizeStem(stem)}_real`;
+  return nextName(base, registry, overwriteDuplicates);
+}
+
 export function makeLayerStem(fileName, layerName) {
   return `${sanitizeStem(toBaseName(fileName))}_${sanitizeStem(layerName)}`;
 }

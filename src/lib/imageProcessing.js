@@ -297,13 +297,13 @@ async function canvasToPngBlob(canvas) {
   });
 }
 
-function fillOutputBackground(context, size, background) {
+function fillOutputBackground(context, width, height, background) {
   if (background === "transparent") {
-    context.clearRect(0, 0, size, size);
+    context.clearRect(0, 0, width, height);
     return;
   }
   context.fillStyle = background;
-  context.fillRect(0, 0, size, size);
+  context.fillRect(0, 0, width, height);
 }
 
 async function loadRasterAsCanvas(file) {
@@ -349,7 +349,7 @@ async function renderCanvasToSquare(sourceCanvas, options = {}) {
   const context = outputCanvas.getContext("2d", {
     alpha: outputBackground === "transparent"
   });
-  fillOutputBackground(context, size, outputBackground);
+  fillOutputBackground(context, size, size, outputBackground);
 
   const placement = computeContainPlacement(sourceWidth, sourceHeight, size);
   context.imageSmoothingEnabled = true;
@@ -370,43 +370,146 @@ async function renderCanvasToSquare(sourceCanvas, options = {}) {
   };
 }
 
-function collectPsdLayers(psd) {
-  const list = [];
+async function renderCanvasAtOriginalSize(sourceCanvas, options = {}) {
+  const sourceWidth = sourceCanvas.width;
+  const sourceHeight = sourceCanvas.height;
+  const removeBackground = Boolean(options.removeBackground);
+  const generateBackground = Boolean(options.generateBackground);
+  const fallbackBackground = options.background ?? "#ffffff";
 
-  function walkLayers(layers, prefix = []) {
-    if (!Array.isArray(layers)) {
-      return;
-    }
-    layers.forEach((layer, index) => {
-      const layerName = sanitizeLayerName(layer?.name, index);
-      const groupPath = [...prefix, layerName];
+  const dominantColor = detectDominantBorderColor(sourceCanvas);
+  const dominantHex = toHexColor(dominantColor);
+  const outputBackground = removeBackground
+    ? "transparent"
+    : ((generateBackground && dominantHex) || fallbackBackground);
 
-      if (Array.isArray(layer?.children) && layer.children.length > 0) {
-        walkLayers(layer.children, groupPath);
-        return;
-      }
+  const outputCanvas = makeCanvas(sourceWidth, sourceHeight);
+  const context = outputCanvas.getContext("2d", {
+    alpha: outputBackground === "transparent"
+  });
+  fillOutputBackground(context, sourceWidth, sourceHeight, outputBackground);
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.drawImage(sourceCanvas, 0, 0);
 
-      const layerCanvas = buildLayerCanvas(layer);
-      if (!layerCanvas || layerCanvas.width <= 0 || layerCanvas.height <= 0) {
-        return;
-      }
-
-      const left = Number.isFinite(layer?.left) ? layer.left : 0;
-      const top = Number.isFinite(layer?.top) ? layer.top : 0;
-      const documentCanvas = makeCanvas(psd.width, psd.height);
-      const context = documentCanvas.getContext("2d");
-      context.clearRect(0, 0, psd.width, psd.height);
-      context.drawImage(layerCanvas, left, top);
-
-      list.push({
-        name: groupPath.join("__"),
-        canvas: documentCanvas
-      });
-    });
+  if (removeBackground && dominantColor) {
+    removeConnectedBackground(outputCanvas, dominantColor, options.backgroundTolerance ?? 42);
   }
 
-  walkLayers(psd.children || []);
-  return list;
+  const blob = await canvasToPngBlob(outputCanvas);
+  return {
+    blob,
+    sourceWidth,
+    sourceHeight,
+    placement: {
+      x: 0,
+      y: 0,
+      width: sourceWidth,
+      height: sourceHeight,
+      scale: 1
+    },
+    dominantBackground: dominantHex || ""
+  };
+}
+
+function collectLeafLayers(layers, prefix = [], destination = []) {
+  if (!Array.isArray(layers)) {
+    return destination;
+  }
+
+  layers.forEach((layer, index) => {
+    if (layer?.hidden) {
+      return;
+    }
+
+    const layerName = sanitizeLayerName(layer?.name, index);
+    const path = [...prefix, layerName];
+
+    if (Array.isArray(layer?.children) && layer.children.length > 0) {
+      collectLeafLayers(layer.children, path, destination);
+      return;
+    }
+
+    const layerCanvas = buildLayerCanvas(layer);
+    if (!layerCanvas || layerCanvas.width <= 0 || layerCanvas.height <= 0) {
+      return;
+    }
+
+    destination.push({
+      name: path.join("__"),
+      canvas: layerCanvas,
+      left: Number.isFinite(layer?.left) ? layer.left : 0,
+      top: Number.isFinite(layer?.top) ? layer.top : 0
+    });
+  });
+
+  return destination;
+}
+
+function collectArtboards(layers, prefix = [], destination = []) {
+  if (!Array.isArray(layers)) {
+    return destination;
+  }
+
+  layers.forEach((layer, index) => {
+    if (layer?.hidden) {
+      return;
+    }
+
+    const layerName = sanitizeLayerName(layer?.name, index);
+    const path = [...prefix, layerName];
+    const rect = layer?.artboard?.rect;
+    const hasRect = rect
+      && Number.isFinite(rect.left)
+      && Number.isFinite(rect.top)
+      && Number.isFinite(rect.right)
+      && Number.isFinite(rect.bottom);
+    const children = Array.isArray(layer?.children) ? layer.children : [];
+
+    if (hasRect && children.length > 0) {
+      const width = Math.max(1, Math.round(rect.right - rect.left));
+      const height = Math.max(1, Math.round(rect.bottom - rect.top));
+      destination.push({
+        name: path.join("__"),
+        left: rect.left,
+        top: rect.top,
+        width,
+        height,
+        children
+      });
+    }
+
+    if (children.length > 0) {
+      collectArtboards(children, path, destination);
+    }
+  });
+
+  return destination;
+}
+
+function composeArtboardCanvas(artboard) {
+  const canvas = makeCanvas(artboard.width, artboard.height);
+  const context = canvas.getContext("2d");
+  context.clearRect(0, 0, artboard.width, artboard.height);
+
+  const leaves = collectLeafLayers(artboard.children);
+  for (const leaf of leaves) {
+    const x = Math.round(leaf.left - artboard.left);
+    const y = Math.round(leaf.top - artboard.top);
+    context.drawImage(leaf.canvas, x, y);
+  }
+
+  return {
+    canvas,
+    layerCount: leaves.length
+  };
+}
+
+async function renderExtractedCanvas(sourceCanvas, options = {}) {
+  if (options.realSize) {
+    return renderCanvasAtOriginalSize(sourceCanvas, options);
+  }
+  return renderCanvasToSquare(sourceCanvas, options);
 }
 
 export async function processToSquarePng(file, options = {}) {
@@ -428,19 +531,47 @@ export async function extractPsdLayersToSquarePng(file, options = {}) {
     throw new Error("No se pudo leer el PSD.");
   }
 
-  const layers = collectPsdLayers(psd);
+  const artboards = collectArtboards(psd.children || []);
+  const useArtboardMode = artboards.length >= 2;
+  const results = [];
+
+  if (useArtboardMode) {
+    for (let index = 0; index < artboards.length; index += 1) {
+      const artboard = artboards[index];
+      const composed = composeArtboardCanvas(artboard);
+      if (composed.layerCount === 0) {
+        continue;
+      }
+      const rendered = await renderExtractedCanvas(composed.canvas, options);
+      results.push({
+        ...rendered,
+        layerName: artboard.name,
+        layerIndex: index,
+        kind: "artboard",
+        realSize: Boolean(options.realSize)
+      });
+    }
+
+    if (results.length === 0) {
+      throw new Error("No se encontraron capas rasterizables dentro de las mesas de trabajo.");
+    }
+    return results;
+  }
+
+  const layers = collectLeafLayers(psd.children || []);
   if (layers.length === 0) {
     throw new Error("El PSD no tiene capas rasterizables para extraer.");
   }
 
-  const results = [];
   for (let index = 0; index < layers.length; index += 1) {
     const layer = layers[index];
-    const rendered = await renderCanvasToSquare(layer.canvas, options);
+    const rendered = await renderExtractedCanvas(layer.canvas, options);
     results.push({
       ...rendered,
       layerName: layer.name,
-      layerIndex: index
+      layerIndex: index,
+      kind: "layer",
+      realSize: Boolean(options.realSize)
     });
   }
   return results;

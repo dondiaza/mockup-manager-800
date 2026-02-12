@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   buildOutputName,
   buildOutputNameFromStem,
+  buildOutputNameFromStemRealSize,
   buildZipForItem,
   buildZipFromItems,
   clearOutputs,
@@ -77,6 +78,7 @@ export default function App() {
   const [overwriteDuplicates, setOverwriteDuplicates] = useState(true);
   const [removeBackground, setRemoveBackground] = useState(false);
   const [extractPsdLayers, setExtractPsdLayers] = useState(false);
+  const [exportPsdLayersRealSize, setExportPsdLayersRealSize] = useState(false);
   const [generateDominantBackground, setGenerateDominantBackground] = useState(true);
   const [fallbackBackground, setFallbackBackground] = useState("#ffffff");
   const [selectedId, setSelectedId] = useState("");
@@ -183,11 +185,19 @@ export default function App() {
   async function processItemOutputs(file, registry) {
     const options = processingOptions();
     if (extractPsdLayers && isPsdFile(file)) {
-      const layerResults = await extractPsdLayersToSquarePng(file, options);
+      const layerResults = await extractPsdLayersToSquarePng(file, {
+        ...options,
+        realSize: exportPsdLayersRealSize
+      });
       const outputs = [];
       for (const layerResult of layerResults) {
-        const stem = makeLayerStem(file.name, layerResult.layerName);
-        const outputName = buildOutputNameFromStem(stem, registry, overwriteDuplicates);
+        const entityName = layerResult.kind === "artboard"
+          ? `artboard_${layerResult.layerName}`
+          : layerResult.layerName;
+        const stem = makeLayerStem(file.name, entityName);
+        const outputName = layerResult.realSize
+          ? buildOutputNameFromStemRealSize(stem, registry, overwriteDuplicates)
+          : buildOutputNameFromStem(stem, registry, overwriteDuplicates);
         outputs.push(createOutput(outputName, layerResult.blob));
       }
       return {
@@ -541,6 +551,16 @@ export default function App() {
               disabled={processing || importingAttachments}
             />
             Extraer por capas (PSD)
+          </label>
+
+          <label>
+            <input
+              type="checkbox"
+              checked={exportPsdLayersRealSize}
+              onChange={(event) => setExportPsdLayersRealSize(event.target.checked)}
+              disabled={processing || importingAttachments || !extractPsdLayers}
+            />
+            Capas PSD a tamano real (100%)
           </label>
 
           <label>
