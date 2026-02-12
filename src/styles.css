@@ -1,0 +1,287 @@
+:root {
+  color-scheme: light;
+  --bg: #f5f5f0;
+  --panel: #ffffff;
+  --text: #1a1f1d;
+  --muted: #59615d;
+  --line: #d8ddd8;
+  --accent: #1f5eff;
+  --ok: #0a7b4f;
+  --error: #b31d3b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", "IBM Plex Sans", system-ui, sans-serif;
+  background: radial-gradient(80vw 50vh at 0% 0%, #f9fbff 0%, transparent 60%), var(--bg);
+  color: var(--text);
+}
+
+.layout {
+  width: min(1240px, 96vw);
+  margin: 20px auto 40px;
+  display: grid;
+  gap: 14px;
+}
+
+.hero {
+  background: linear-gradient(120deg, #1f5eff, #24a86a);
+  color: #fff;
+  padding: 20px;
+  border-radius: 12px;
+}
+
+.hero h1 {
+  margin: 0 0 6px;
+  font-size: clamp(1.4rem, 2vw, 2rem);
+}
+
+.hero p {
+  margin: 0;
+  opacity: 0.94;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.controls {
+  display: grid;
+  gap: 10px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+button {
+  border: 1px solid #123cc2;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button.ghost {
+  color: var(--text);
+  background: #f1f3f2;
+  border-color: #cdd4cf;
+}
+
+.small {
+  padding: 6px 8px;
+  font-size: 0.85rem;
+}
+
+.link-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: #0e42d2;
+  text-align: left;
+  font-weight: 600;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
+
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+}
+
+.options label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+select {
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.progress-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: center;
+}
+
+progress {
+  width: 260px;
+  height: 12px;
+}
+
+.message {
+  margin: 0;
+  color: var(--muted);
+}
+
+.content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 12px;
+  min-height: 340px;
+}
+
+.table-wrap {
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+thead th {
+  text-align: left;
+  padding: 10px;
+  background: #f8faf9;
+  border-bottom: 1px solid var(--line);
+}
+
+tbody td {
+  vertical-align: top;
+  border-bottom: 1px solid #edf0ee;
+  padding: 10px;
+}
+
+tbody tr.selected {
+  background: #f2f6ff;
+}
+
+.status {
+  font-size: 0.82rem;
+  border-radius: 14px;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+}
+
+.status.pendiente {
+  background: #f3f4f7;
+  border-color: #d2d6df;
+}
+
+.status.procesando {
+  background: #eef5ff;
+  border-color: #b7cbff;
+}
+
+.status.ok {
+  background: #eafbf2;
+  border-color: #a5e2c4;
+  color: var(--ok);
+}
+
+.status.error {
+  background: #fff0f3;
+  border-color: #f4bdc8;
+  color: var(--error);
+}
+
+.dim {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-top: 4px;
+}
+
+.mono {
+  font-family: ui-monospace, "Cascadia Code", "SF Mono", monospace;
+  font-size: 0.82rem;
+}
+
+.preview {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.preview h3 {
+  margin-top: 0;
+}
+
+.preview-image {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  object-fit: contain;
+  background: linear-gradient(45deg, #f4f4f4 25%, #ffffff 25%, #ffffff 50%, #f4f4f4 50%, #f4f4f4 75%, #ffffff 75%, #ffffff 100%);
+  background-size: 20px 20px;
+}
+
+.trello .trello-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.trello h2 {
+  margin: 0;
+}
+
+.trello-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 360px) 1fr;
+  gap: 14px;
+}
+
+.trello-grid label {
+  display: grid;
+  gap: 8px;
+}
+
+.list {
+  margin: 0;
+  padding-left: 16px;
+  display: grid;
+  gap: 6px;
+}
+
+.error {
+  color: var(--error);
+  margin: 0 0 10px;
+}
+
+.hidden {
+  display: none;
+}
+
+@media (max-width: 980px) {
+  .content {
+    grid-template-columns: 1fr;
+  }
+
+  .trello-grid {
+    grid-template-columns: 1fr;
+  }
+}
