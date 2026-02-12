@@ -4,9 +4,9 @@ Aplicacion web para procesar mockups en lote desde navegador:
 - Carga masiva de archivos o carpeta.
 - Soporte para `PSD`, `PNG`, `JPG/JPEG`, `WEBP`, `TIFF`.
 - Exporta siempre a `PNG` de `800x800`.
-- Sin deformar y sin recortar: usa ajuste `contain` + relleno (transparente o color).
+- Sin deformar y sin recortar: usa ajuste `contain` + relleno inteligente.
 - Vista previa, estados por archivo, progreso global y descarga en ZIP.
-- Integracion con Trello para leer tableros y listas.
+- Integracion con Trello para leer tableros, listas, tarjetas y extraer adjuntos.
 
 ## Requisitos
 
@@ -47,17 +47,19 @@ Incluye 3 casos para el algoritmo `contain`:
 ## Flujo de uso
 
 1. `Seleccionar archivos` o `Seleccionar carpeta` (carga masiva).
-2. Opcional: ajustar `Fondo de relleno`:
-   - Transparente (default)
-   - Blanco
-   - Negro
-3. Click en `Procesar todo`.
+2. Opcional:
+   - `Sin fondo`: elimina fondo predominante conectado en bordes.
+   - `Extraer por capas (PSD)`: una salida por capa rasterizable.
+   - `Fondo adicional con color predominante`: relleno automatico del color de fondo dominante.
+   - `Fondo fallback`: color de respaldo cuando no detecta color predominante.
+3. Click en `Procesar`.
 4. Revisar estado por archivo y vista previa.
 5. Descargar individual o `Descargar ZIP`.
 
 ## PSD
 
 - Se procesa el PSD usando su vista compuesta.
+- Si activas `Extraer por capas (PSD)`, genera una imagen por capa con nombre de capa.
 - Si un PSD no trae composicion compatible, la app mostrara error.
 - Recomendacion: guardar PSD con compatibilidad maxima.
 
@@ -73,6 +75,14 @@ TRELLO_TOKEN=tu_token
 ```
 
 Archivo de ejemplo: `.env.example`.
+
+Flujo Trello en UI:
+1. Seleccionar tablero.
+2. Seleccionar lista.
+3. Seleccionar tarjeta.
+4. Ver adjuntos imagen.
+5. `Extraer imagenes de tarjeta`.
+6. Opcional: check `Al extraer, pasar directo por el redimensionador`.
 
 ## Deploy en Vercel
 
@@ -93,7 +103,10 @@ Pasos:
 |- api/
 |  |- _trelloClient.js
 |  `- trello/
+|     |- attachment-file.js
 |     |- boards.js
+|     |- card-attachments.js
+|     |- cards.js
 |     `- lists.js
 |- src/
 |  |- lib/
@@ -114,3 +127,4 @@ Pasos:
 - El soporte PSD depende de la composicion guardada en el archivo.
 - TIFF depende del soporte del navegador para decodificacion.
 - Trello requiere credenciales activas via variables de entorno.
+- La eliminacion de fondo es heuristica basada en color predominante de bordes.

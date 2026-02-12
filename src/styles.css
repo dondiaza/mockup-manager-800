@@ -117,6 +117,7 @@ button.ghost {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 select {
@@ -251,13 +252,28 @@ tbody tr.selected {
 
 .trello-grid {
   display: grid;
-  grid-template-columns: minmax(240px, 360px) 1fr;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
   gap: 14px;
+  margin-bottom: 12px;
 }
 
 .trello-grid label {
   display: grid;
   gap: 8px;
+}
+
+.trello-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.trello-actions label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .list {

@@ -37,6 +37,22 @@ function withAuth(path, key, token) {
   return `${BASE_URL}${path}${separator}key=${encodeURIComponent(key)}&token=${encodeURIComponent(token)}`;
 }
 
+function withAuthAbsolute(url, key, token) {
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}key=${encodeURIComponent(key)}&token=${encodeURIComponent(token)}`;
+}
+
+function isImageAttachment(attachment) {
+  const mime = attachment?.mimeType || "";
+  const name = attachment?.name || "";
+  const url = attachment?.url || "";
+  return (
+    mime.startsWith("image/") ||
+    /\.(png|jpe?g|webp|tiff?|psd)$/i.test(name) ||
+    /\.(png|jpe?g|webp|tiff?|psd)(\?|$)/i.test(url)
+  );
+}
+
 export async function fetchBoards() {
   const creds = getCredentials();
   if (!creds.ok) {
@@ -102,5 +118,165 @@ export async function fetchLists(boardId) {
     ok: true,
     status: 200,
     lists: payload.json || []
+  };
+}
+
+export async function fetchCards(listId) {
+  if (!listId) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Falta listId."
+    };
+  }
+
+  const creds = getCredentials();
+  if (!creds.ok) {
+    return {
+      ok: false,
+      status: 400,
+      error: creds.message
+    };
+  }
+
+  const url = withAuth(
+    `/lists/${encodeURIComponent(listId)}/cards?fields=id,name,closed`,
+    creds.key,
+    creds.token
+  );
+  const response = await fetch(url);
+  const payload = await readTrelloPayload(response);
+  if (!response.ok) {
+    return {
+      ok: false,
+      status: response.status,
+      error: payload.json?.message || payload.text || "Error consultando tarjetas de la lista."
+    };
+  }
+
+  const cards = (payload.json || []).filter((card) => !card.closed);
+  return {
+    ok: true,
+    status: 200,
+    cards
+  };
+}
+
+export async function fetchCardAttachments(cardId) {
+  if (!cardId) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Falta cardId."
+    };
+  }
+
+  const creds = getCredentials();
+  if (!creds.ok) {
+    return {
+      ok: false,
+      status: 400,
+      error: creds.message
+    };
+  }
+
+  const url = withAuth(
+    `/cards/${encodeURIComponent(cardId)}/attachments?fields=id,name,mimeType,url,isUpload`,
+    creds.key,
+    creds.token
+  );
+  const response = await fetch(url);
+  const payload = await readTrelloPayload(response);
+  if (!response.ok) {
+    return {
+      ok: false,
+      status: response.status,
+      error: payload.json?.message || payload.text || "Error consultando adjuntos de la tarjeta."
+    };
+  }
+
+  const attachments = (payload.json || []).filter(isImageAttachment);
+  return {
+    ok: true,
+    status: 200,
+    attachments
+  };
+}
+
+function safeFileName(value, fallback = "attachment.png") {
+  const text = (value || "").trim();
+  const normalized = text
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\\/:*?"<>|]+/g, " ")
+    .replace(/\s+/g, "_")
+    .replace(/[^A-Za-z0-9._-]/g, "")
+    .replace(/^_+|_+$/g, "");
+  return normalized || fallback;
+}
+
+export async function fetchAttachmentBinary(cardId, attachmentId) {
+  if (!cardId || !attachmentId) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Faltan cardId y/o attachmentId."
+    };
+  }
+
+  const creds = getCredentials();
+  if (!creds.ok) {
+    return {
+      ok: false,
+      status: 400,
+      error: creds.message
+    };
+  }
+
+  const metadataUrl = withAuth(
+    `/cards/${encodeURIComponent(cardId)}/attachments/${encodeURIComponent(attachmentId)}?fields=id,name,mimeType,url,fileName`,
+    creds.key,
+    creds.token
+  );
+  const metadataResponse = await fetch(metadataUrl);
+  const metadataPayload = await readTrelloPayload(metadataResponse);
+  if (!metadataResponse.ok) {
+    return {
+      ok: false,
+      status: metadataResponse.status,
+      error: metadataPayload.json?.message || metadataPayload.text || "No se pudo leer el adjunto."
+    };
+  }
+
+  const attachment = metadataPayload.json;
+  if (!isImageAttachment(attachment)) {
+    return {
+      ok: false,
+      status: 400,
+      error: "El adjunto no es una imagen soportada."
+    };
+  }
+
+  const downloadUrl = withAuthAbsolute(attachment.url, creds.key, creds.token);
+  const fileResponse = await fetch(downloadUrl);
+  if (!fileResponse.ok) {
+    const errorPayload = await readTrelloPayload(fileResponse);
+    return {
+      ok: false,
+      status: fileResponse.status,
+      error: errorPayload.json?.message || errorPayload.text || "No se pudo descargar el adjunto."
+    };
+  }
+
+  const arrayBuffer = await fileResponse.arrayBuffer();
+  const fileName = safeFileName(attachment.fileName || attachment.name || `attachment_${attachmentId}.png`);
+  const contentType = fileResponse.headers.get("content-type") || attachment.mimeType || "application/octet-stream";
+
+  return {
+    ok: true,
+    status: 200,
+    fileName,
+    contentType,
+    data: Buffer.from(arrayBuffer)
   };
 }
