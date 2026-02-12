@@ -1,5 +1,20 @@
 const BASE_URL = "https://api.trello.com/1";
 
+async function readTrelloPayload(response) {
+  const text = await response.text();
+  try {
+    return {
+      text,
+      json: JSON.parse(text)
+    };
+  } catch {
+    return {
+      text,
+      json: null
+    };
+  }
+}
+
 function getCredentials() {
   const key = process.env.TRELLO_API_KEY;
   const token = process.env.TRELLO_TOKEN;
@@ -34,19 +49,19 @@ export async function fetchBoards() {
 
   const url = withAuth("/members/me/boards?fields=id,name,url,closed", creds.key, creds.token);
   const response = await fetch(url);
-  const data = await response.json();
+  const payload = await readTrelloPayload(response);
   if (!response.ok) {
     return {
       ok: false,
       status: response.status,
-      error: data?.message || "Error consultando tableros en Trello."
+      error: payload.json?.message || payload.text || "Error consultando tableros en Trello."
     };
   }
 
   return {
     ok: true,
     status: 200,
-    boards: data.filter((board) => !board.closed)
+    boards: (payload.json || []).filter((board) => !board.closed)
   };
 }
 
@@ -74,18 +89,18 @@ export async function fetchLists(boardId) {
     creds.token
   );
   const response = await fetch(url);
-  const data = await response.json();
+  const payload = await readTrelloPayload(response);
   if (!response.ok) {
     return {
       ok: false,
       status: response.status,
-      error: data?.message || "Error consultando listas del tablero."
+      error: payload.json?.message || payload.text || "Error consultando listas del tablero."
     };
   }
 
   return {
     ok: true,
     status: 200,
-    lists: data
+    lists: payload.json || []
   };
 }
