@@ -92,7 +92,7 @@ export default function App() {
   const [lists, setLists] = useState([]);
   const [selectedList, setSelectedList] = useState("");
   const [cards, setCards] = useState([]);
-  const [selectedCard, setSelectedCard] = useState("");
+  const [selectedCardIds, setSelectedCardIds] = useState([]);
   const [attachments, setAttachments] = useState([]);
   const [importingAttachments, setImportingAttachments] = useState(false);
   const [autoResizeTrelloImport, setAutoResizeTrelloImport] = useState(true);
@@ -345,7 +345,7 @@ export default function App() {
     setAttachments([]);
     setSelectedBoard("");
     setSelectedList("");
-    setSelectedCard("");
+    setSelectedCardIds([]);
     try {
       const response = await fetch("/api/trello/boards");
       const data = await response.json();
@@ -363,7 +363,7 @@ export default function App() {
   async function loadLists(boardId) {
     setSelectedBoard(boardId);
     setSelectedList("");
-    setSelectedCard("");
+    setSelectedCardIds([]);
     setLists([]);
     setCards([]);
     setAttachments([]);
@@ -388,7 +388,7 @@ export default function App() {
 
   async function loadCards(listId) {
     setSelectedList(listId);
-    setSelectedCard("");
+    setSelectedCardIds([]);
     setCards([]);
     setAttachments([]);
     if (!listId) {
@@ -410,80 +410,108 @@ export default function App() {
     }
   }
 
-  async function loadAttachments(cardId) {
-    setSelectedCard(cardId);
-    setAttachments([]);
-    if (!cardId) {
-      return;
-    }
-    setTrelloLoading(true);
-    setTrelloError("");
-    try {
-      const response = await fetch(`/api/trello/card-attachments?cardId=${encodeURIComponent(cardId)}`);
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "No se pudieron leer los adjuntos de la tarjeta.");
+  function toggleCardSelection(cardId) {
+    setSelectedCardIds((current) => {
+      if (current.includes(cardId)) {
+        return current.filter((id) => id !== cardId);
       }
-      setAttachments((data.attachments || []).filter(isRenderableAttachment));
-    } catch (error) {
-      setTrelloError(error instanceof Error ? error.message : "Error cargando adjuntos.");
-    } finally {
-      setTrelloLoading(false);
+      return [...current, cardId];
+    });
+    setAttachments([]);
+  }
+
+  function selectAllCards() {
+    setSelectedCardIds(cards.map((card) => card.id));
+    setAttachments([]);
+  }
+
+  function clearCardSelection() {
+    setSelectedCardIds([]);
+    setAttachments([]);
+  }
+
+  async function fetchRenderableAttachments(cardId) {
+    const response = await fetch(`/api/trello/card-attachments?cardId=${encodeURIComponent(cardId)}`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || "No se pudieron leer los adjuntos de una tarjeta.");
     }
+    return (data.attachments || []).filter(isRenderableAttachment);
   }
 
   async function importCardImages() {
-    if (!selectedCard) {
-      setGlobalMessage("Selecciona una tarjeta para extraer imagenes.");
+    if (selectedCardIds.length === 0) {
+      setGlobalMessage("Selecciona al menos una tarjeta para extraer imagenes.");
       return;
     }
     setImportingAttachments(true);
     setTrelloError("");
     try {
-      let selectedAttachments = attachments;
-      if (!selectedAttachments.length) {
-        const refreshResponse = await fetch(`/api/trello/card-attachments?cardId=${encodeURIComponent(selectedCard)}`);
-        const refreshData = await refreshResponse.json();
-        if (!refreshResponse.ok) {
-          throw new Error(refreshData.error || "No se pudieron cargar adjuntos de la tarjeta.");
-        }
-        selectedAttachments = (refreshData.attachments || []).filter(isRenderableAttachment);
-        setAttachments(selectedAttachments);
-      }
-
-      if (!selectedAttachments.length) {
-        throw new Error("La tarjeta seleccionada no tiene imagenes adjuntas.");
-      }
-
-      const selectedCardData = cards.find((card) => card.id === selectedCard);
-      const cardName = selectedCardData?.name || "trello_card";
-
+      const cardsById = new Map(cards.map((card) => [card.id, card]));
       const files = [];
-      for (let index = 0; index < selectedAttachments.length; index += 1) {
-        const attachment = selectedAttachments[index];
-        const fileResponse = await fetch(
-          `/api/trello/attachment-file?cardId=${encodeURIComponent(selectedCard)}&attachmentId=${encodeURIComponent(attachment.id)}`
-        );
-        if (!fileResponse.ok) {
-          let message = "No se pudo descargar un adjunto.";
-          try {
-            const payload = await fileResponse.json();
-            message = payload.error || message;
-          } catch {
-            message = `${message} Estado ${fileResponse.status}.`;
-          }
-          throw new Error(message);
+      const aggregatedAttachments = [];
+      let totalAttachments = 0;
+      let cardsWithImages = 0;
+
+      for (const cardId of selectedCardIds) {
+        const selectedAttachments = await fetchRenderableAttachments(cardId);
+        totalAttachments += selectedAttachments.length;
+        if (selectedAttachments.length > 0) {
+          cardsWithImages += 1;
         }
-        const blob = await fileResponse.blob();
-        const fileName = ensureAttachmentFileName(cardName, attachment.name, blob.type || attachment.mimeType, index);
-        files.push(new File([blob], fileName, { type: blob.type || attachment.mimeType || "image/png", lastModified: Date.now() }));
+
+        const selectedCardData = cardsById.get(cardId);
+        const cardName = selectedCardData?.name || "trello_card";
+        aggregatedAttachments.push(
+          ...selectedAttachments.map((attachment) => ({
+            ...attachment,
+            cardId,
+            cardName
+          }))
+        );
+
+        for (let index = 0; index < selectedAttachments.length; index += 1) {
+          const attachment = selectedAttachments[index];
+          const fileResponse = await fetch(
+            `/api/trello/attachment-file?cardId=${encodeURIComponent(cardId)}&attachmentId=${encodeURIComponent(attachment.id)}`
+          );
+          if (!fileResponse.ok) {
+            let message = "No se pudo descargar un adjunto.";
+            try {
+              const payload = await fileResponse.json();
+              message = payload.error || message;
+            } catch {
+              message = `${message} Estado ${fileResponse.status}.`;
+            }
+            throw new Error(message);
+          }
+          const blob = await fileResponse.blob();
+          const fileName = ensureAttachmentFileName(cardName, attachment.name, blob.type || attachment.mimeType, index);
+          files.push(
+            new File(
+              [blob],
+              fileName,
+              {
+                type: blob.type || attachment.mimeType || "image/png",
+                lastModified: Date.now()
+              }
+            )
+          );
+        }
+      }
+      setAttachments(aggregatedAttachments);
+
+      if (!files.length) {
+        throw new Error("Las tarjetas seleccionadas no tienen imagenes adjuntas.");
       }
 
       const { addedItems, mergedItems } = appendFiles(files);
       if (!addedItems.length) {
         setGlobalMessage("No se agregaron nuevas imagenes desde Trello (posibles duplicados).");
       } else {
-        setGlobalMessage(`Se importaron ${addedItems.length} imagen(es) desde Trello.`);
+        setGlobalMessage(
+          `Se importaron ${addedItems.length} imagen(es) desde ${cardsWithImages}/${selectedCardIds.length} tarjeta(s). Total adjuntos: ${totalAttachments}.`
+        );
       }
 
       if (autoResizeTrelloImport && addedItems.length > 0) {
@@ -706,18 +734,54 @@ export default function App() {
               ))}
             </select>
           </label>
+        </div>
 
-          <label>
-            Tarjeta
-            <select value={selectedCard} onChange={(event) => loadAttachments(event.target.value)} disabled={trelloLoading || !selectedList}>
-              <option value="">Selecciona...</option>
+        <div className="trello-cards">
+          <div className="trello-cards-head">
+            <h4>Tarjetas de la lista</h4>
+            <div className="trello-card-tools">
+              <button
+                type="button"
+                className="ghost small"
+                onClick={selectAllCards}
+                disabled={!cards.length || processing || importingAttachments}
+              >
+                Seleccionar todas
+              </button>
+              <button
+                type="button"
+                className="ghost small"
+                onClick={clearCardSelection}
+                disabled={!selectedCardIds.length || processing || importingAttachments}
+              >
+                Limpiar
+              </button>
+            </div>
+          </div>
+
+          {!selectedList ? (
+            <p className="dim">Selecciona una lista para ver sus tarjetas.</p>
+          ) : cards.length === 0 ? (
+            <p className="dim">No hay tarjetas en esta lista.</p>
+          ) : (
+            <ul className="card-list">
               {cards.map((card) => (
-                <option key={card.id} value={card.id}>
-                  {card.name}
-                </option>
+                <li key={card.id}>
+                  <label className="card-row">
+                    <input
+                      type="checkbox"
+                      checked={selectedCardIds.includes(card.id)}
+                      onChange={() => toggleCardSelection(card.id)}
+                      disabled={processing || importingAttachments}
+                    />
+                    <span>{card.name}</span>
+                  </label>
+                </li>
               ))}
-            </select>
-          </label>
+            </ul>
+          )}
+
+          <p className="dim">Tarjetas seleccionadas: {selectedCardIds.length}</p>
         </div>
 
         <div className="trello-actions">
@@ -734,20 +798,22 @@ export default function App() {
           <button
             type="button"
             onClick={importCardImages}
-            disabled={!selectedCard || importingAttachments || processing}
+            disabled={selectedCardIds.length === 0 || importingAttachments || processing}
           >
-            {importingAttachments ? "Importando..." : "Extraer imagenes de tarjeta"}
+            {importingAttachments ? "Importando..." : "Extraer imagenes de tarjetas seleccionadas"}
           </button>
         </div>
 
         <div>
-          <h4>Adjuntos imagen de la tarjeta</h4>
+          <h4>Adjuntos imagen detectados (ultima importacion)</h4>
           {attachments.length === 0 ? (
-            <p className="dim">Sin imagenes en la tarjeta seleccionada.</p>
+            <p className="dim">Sin adjuntos cargados todavia.</p>
           ) : (
             <ul className="list">
               {attachments.map((attachment) => (
-                <li key={attachment.id}>{attachment.name}</li>
+                <li key={`${attachment.cardId}-${attachment.id}`}>
+                  {attachment.cardName}: {attachment.name}
+                </li>
               ))}
             </ul>
           )}

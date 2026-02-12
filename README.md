@@ -82,9 +82,9 @@ Archivo de ejemplo: `.env.example`.
 Flujo Trello en UI:
 1. Seleccionar tablero.
 2. Seleccionar lista.
-3. Seleccionar tarjeta.
-4. Ver adjuntos imagen.
-5. `Extraer imagenes de tarjeta`.
+3. Seleccionar una o varias tarjetas de esa lista.
+4. `Extraer imagenes de tarjetas seleccionadas`.
+5. Revisar adjuntos detectados.
 6. Opcional: check `Al extraer, pasar directo por el redimensionador`.
 
 ## Deploy en Vercel

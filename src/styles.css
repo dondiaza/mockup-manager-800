@@ -252,7 +252,7 @@ tbody tr.selected {
 
 .trello-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
   gap: 14px;
   margin-bottom: 12px;
 }
@@ -274,6 +274,55 @@ tbody tr.selected {
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+.trello-cards {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.trello-cards-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.trello-cards-head h4 {
+  margin: 0;
+}
+
+.trello-card-tools {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.card-list {
+  margin: 10px 0 0;
+  padding-left: 0;
+  list-style: none;
+  max-height: 240px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.card-list li {
+  border-bottom: 1px solid #edf0ee;
+}
+
+.card-list li:last-child {
+  border-bottom: 0;
+}
+
+.card-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
 }
 
 .list {
