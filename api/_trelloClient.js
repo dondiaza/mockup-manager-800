@@ -42,6 +42,10 @@ function withAuthAbsolute(url, key, token) {
   return `${url}${separator}key=${encodeURIComponent(key)}&token=${encodeURIComponent(token)}`;
 }
 
+function trelloDownloadOAuthHeader(key, token) {
+  return `OAuth oauth_consumer_key="${key}", oauth_token="${token}"`;
+}
+
 function isImageAttachment(attachment) {
   const mime = attachment?.mimeType || "";
   const name = attachment?.name || "";
@@ -257,13 +261,30 @@ export async function fetchAttachmentBinary(cardId, attachmentId) {
     };
   }
 
-  const downloadUrl = withAuthAbsolute(attachment.url, creds.key, creds.token);
-  const fileResponse = await fetch(downloadUrl);
-  if (!fileResponse.ok) {
-    const errorPayload = await readTrelloPayload(fileResponse);
+  const rawUrl = attachment.url;
+  const isTrelloHosted = /https:\/\/(trello\.com|api\.trello\.com)\/1\/cards\//i.test(rawUrl);
+  const oauthHeaders = {
+    Authorization: trelloDownloadOAuthHeader(creds.key, creds.token),
+    Accept: "*/*"
+  };
+
+  let fileResponse = null;
+  if (isTrelloHosted) {
+    const apiDownloadUrl = rawUrl.replace(/^https:\/\/trello\.com\/1\//i, "https://api.trello.com/1/");
+    fileResponse = await fetch(apiDownloadUrl, { headers: oauthHeaders });
+    if (!fileResponse.ok) {
+      const fallbackUrl = withAuthAbsolute(apiDownloadUrl, creds.key, creds.token);
+      fileResponse = await fetch(fallbackUrl, { headers: { Accept: "*/*" } });
+    }
+  } else {
+    fileResponse = await fetch(rawUrl);
+  }
+
+  if (!fileResponse || !fileResponse.ok) {
+    const errorPayload = fileResponse ? await readTrelloPayload(fileResponse) : { text: "", json: null };
     return {
       ok: false,
-      status: fileResponse.status,
+      status: fileResponse?.status || 500,
       error: errorPayload.json?.message || errorPayload.text || "No se pudo descargar el adjunto."
     };
   }
